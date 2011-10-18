@@ -99,13 +99,15 @@ def write_topic_term(con, cur, beta_file):
     topic_no = 0
     topic_term_file = open(filename, 'a')
 
-    for topic in file(beta_file, 'r'):
-        topic = map(float, topic.split())
-        indices = range(len(topic)) # note: len(topic) should be the same as len(vocab)
-        indices.sort(lambda x,y: -cmp(topic[x], topic[y]))
+    beta = np.loadtxt(beta_file)
+    indices = np.argsort(beta, axis=1)
+    for topic_no,topic in enumerate(beta):
         for i in range(len(topic)):
-            cur.execute('INSERT INTO topic_term (id, topic, term, score) VALUES(NULL, ?, ?, ?)', [topic_no, indices[i], topic[indices[i]]])
-        topic_no = topic_no + 1
+            ins = 'INSERT INTO topic_term (id, topic, term, score) '
+            ins += 'VALUES(NULL, ?, ?, ?)'
+
+            cur.execute(ins, [topic_no, indices[topic_no,i],
+                              topic[indices[topic_no, i]]])
 
     con.commit()
 
