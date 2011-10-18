@@ -70,17 +70,23 @@ def write_doc_topic(con, cur, gamma_file):
 
 
 def write_topics(con, cur, beta_file, vocab):
+    """
+    For each topic, write the first 3 most probably words to
+    """
     cur.execute('CREATE TABLE topics (id INTEGER PRIMARY KEY, title VARCHAR(100))')
     con.commit()
 
-    # for each line in the beta file
-    indices = range(len(vocab))
+    #NOTE: What is the following line for and why doesn't it raise an error?
     topics_file = open(filename, 'a')
-    for topic in file(beta_file, 'r'):
-        topic = map(float, topic.split())
-	    indices = range(len(topic))
-        indices.sort(lambda x,y: -cmp(topic[x], topic[y]))
-        cur.execute('INSERT INTO topics (id, title) VALUES(NULL, ?)', [buffer("{" + vocab[indices[0]] + ', ' + vocab[indices[1]] + ', ' + vocab[indices[2]] + '}')])
+
+    beta = np.loadtxt(beta_file)
+    indices = np.argsort(beta, axis=1)
+    for index in indices: # note this breaks ties differently than old code
+        ins = 'INSERT INTO topics (id, title) VALUES(NULL, ?)'
+        buf = "{%s, %s, %s}" % (vocab[index[0]],
+                                vocab[index[1]],
+                                vocab[index[2]])
+        cur.execute(ins, [buffer(buf)])
     con.commit()
 
 
