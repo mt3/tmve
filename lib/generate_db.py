@@ -200,7 +200,7 @@ def write_doc_term(con, cur, wordcount_file, no_words):
     cur.execute('CREATE INDEX doc_term_idx2 ON doc_term(term)')
     con.commit()
 
-    for doc_no, doc in enumerate(file(wordcount_file, 'r')):
+    for doc_no, doc in enumerate(open(wordcount_file, 'r')):
         doc = doc.split()[1:]
         terms = {}
         for term in doc:
@@ -210,7 +210,7 @@ def write_doc_term(con, cur, wordcount_file, no_words):
 
 
         res = generic_generator((doc_no,)*len(keys),
-                                keys, [terms[i] for i in keys])
+                                keys, (terms[i] for i in keys))
         execution_str = 'INSERT INTO doc_term (id, doc, term, score) '
         execution_str += 'VALUES(NULL, ?, ?, ?)'
         cur.executemany(execution_str, res)
