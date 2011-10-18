@@ -102,7 +102,7 @@ def write_doc_topic(con, cur, gamma_file):
 
 def write_topics(con, cur, beta_file, vocab):
     """
-    For each topic, write the first 3 most probably words to
+    For each topic, write the first 3 most probable words to db
     """
     cur.execute('CREATE TABLE topics (id INTEGER PRIMARY KEY, title VARCHAR(100))')
     con.commit()
@@ -232,8 +232,7 @@ def write_docs(con, cur, docs_file):
 
     res = docs_file #HACK: my docs_file is already a generator
     cur.executemany('INSERT INTO docs (id, title) VALUES(NULL, ?)',
-                    ([i] for i in imap(buffer, res))) # each term doc be a list
-                                                     # this HAS to be a generator
+                    ([i] for i in imap(buffer, res))) # each should be a list
 
     con.commit()
 
@@ -264,7 +263,7 @@ class MyCorpus(object):
         # documents.create_index([("filename", ASCENDING)])
         # stemmed_documents.create_index([("filename", ASCENDING)])
         for doc in stemmed_documents.find(sort=[('filename', ASCENDING)]):
-            yield doc["stemmed_text"]
+            yield doc["title"]
 
 ### main ###
 
