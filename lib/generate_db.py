@@ -228,17 +228,45 @@ def write_docs(con, cur, docs_file):
     cur.execute('CREATE TABLE docs (id INTEGER PRIMARY KEY, title VARCHAR(100))')
     con.commit()
 
-    res = file_generator(open(docs_file, 'r'))
+    res = docs_file #HACK: my docs_file is already a generator
     cur.executemany('INSERT INTO docs (id, title) VALUES(NULL, ?)',
                     map(buffer, res))
 
     con.commit()
 
 
+### My own iterable corpora instead of a documents file ###
+
+from pymongo import Connection
+from pymongo import ASCENDING, DESCENDING
+
+connection = Connection()
+db = connection.db
+stemmed_documents = db.stemmed_documents
+
+class MyCorpus(object):
+    """
+    A gensim corpus object
+
+    Notes
+    -----
+    This defines an __iter__ method. The corpus is always iterated through
+    by filename sorted in ascending order.
+    """
+    def __init__(self):
+        pass
+
+    def __iter__(self):
+        # if you need to, create an index for the database by doing
+        # documents.create_index([("filename", ASCENDING)])
+        # stemmed_documents.create_index([("filename", ASCENDING)])
+        for doc in stemmed_documents.find(sort=[('filename', ASCENDING)]):
+            yield doc["stemmed_text"]
+
 ### main ###
 
 if (__name__ == '__main__'):
-    if (len(sys.argv) != 7):
+    if (len(sys.argv) != 6): # hack, using on doc-file object
        print 'usage: python generate_csvs.py <db-filename> <doc-wordcount-file> <beta-file> <gamma-file> <vocab-file> <doc-file>\n'
        sys.exit(1)
 
@@ -247,7 +275,8 @@ if (__name__ == '__main__'):
     beta_file = sys.argv[3]
     gamma_file = sys.argv[4]
     vocab_file = sys.argv[5]
-    doc_file = sys.argv[6]
+    #doc_file = sys.argv[6]
+    doc_file = MyCorpus()
 
     # connect to database, which is presumed to not already exist
     con = sqlite3.connect(filename)
