@@ -61,8 +61,6 @@ def write_doc_doc(con, cur, gamma_file):
     docs = np.loadtxt(gamma_file) ** 2
 
     # get the closest 100 relations per document
-    # NOTE: this is buggy, consider this case
-    # you can't have multiple keys with the same value even if they exist
     for a in range(len(docs)):
         doc = docs[a]
         # index below by a, because already compared before a
