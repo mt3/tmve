@@ -60,12 +60,11 @@ def write_doc_topic(con, cur, gamma_file):
 
     docs = np.loadtxt(gamma_file, 'r')
     # for each line in the gamma file
-    doc_no = 0
-    for doc in file(gamma_file, 'r'):
-        doc = map(float, doc.split())
+    for doc_no,doc in enumerate(docs):
         for i in range(len(doc)):
-            cur.execute('INSERT INTO doc_topic (id, doc, topic, score) VALUES(NULL, ?, ?, ?)', [doc_no, i, doc[i]])
-        doc_no = doc_no + 1
+            ins = 'INSERT INTO doc_topic (id, doc, topic, score) '
+            ins += 'VALUES(NULL, ?, ?, ?)'
+            cur.execute(ins, [doc_no, i, doc[i]])
 
     con.commit()
 
@@ -79,7 +78,7 @@ def write_topics(con, cur, beta_file, vocab):
     topics_file = open(filename, 'a')
     for topic in file(beta_file, 'r'):
         topic = map(float, topic.split())
-	indices = range(len(topic))
+	    indices = range(len(topic))
         indices.sort(lambda x,y: -cmp(topic[x], topic[y]))
         cur.execute('INSERT INTO topics (id, title) VALUES(NULL, ?)', [buffer("{" + vocab[indices[0]] + ', ' + vocab[indices[1]] + ', ' + vocab[indices[2]] + '}')])
     con.commit()
