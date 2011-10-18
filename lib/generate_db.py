@@ -22,7 +22,6 @@ def file_generator(fhandle):
 
 ### score functions ###
 
-#NOTE: what distance function is this?
 def get_doc_score(doca, docb, axis=1):
     """
     Returns 1/2 times the sum of squares distance between docuemnts.
