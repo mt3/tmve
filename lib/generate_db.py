@@ -1,19 +1,14 @@
 import sys
 import math
 import sqlite3
+import numpy as np
 
 
 ### score functions ###
 
-def get_doc_score(doca, docb):
-    score = 0
-    total = 0
-    for topic_id in range(len(doca)):
-        thetaa = doca[topic_id]
-        thetab = docb[topic_id]
-        if not ((thetaa != 0.0 and thetab == 0.0) or (thetaa == 0.0 and thetab != 0.0)):
-            score += math.pow(thetaa - thetab, 2)
-    return 0.5 * score
+#NOTE: what distance function is this?
+def get_doc_score(doca, docb, axis=1):
+    return .5 * np.sum((doca - docb)**2, axis=axis)
 
 def get_topic_score(topica, topicb):
     score = 0
@@ -39,36 +34,21 @@ def write_doc_doc(con, cur, gamma_file):
     cur.execute('CREATE INDEX doc_doc_idx2 ON doc_doc(doc_b)')
     con.commit()
 
-    # for each line in the gamma file
-    read_file = file(gamma_file, 'r')
-    docs = []
-    for doc in read_file:
-        docs.append(map(float, doc.split()))
-    read_file.close()
-    for i in range(len(docs)):
-        for j in range(len(docs[i])):
-            docs[i][j] = math.pow(abs(docs[i][j]), 2)
+    docs = np.loadtxt(gamma_file) ** 2
 
-    print len(docs)
+    # get the closest 100 relations per document
+    # NOTE: this is buggy, consider this case
+    # you can't have multiple keys with the same value even if they exist
     for a in range(len(docs)):
-        if a % 1000 == 0:
-            print "doc " + str(a)
-        doc_by_doc = {}
-        for b in range(a, len(docs)):
-            score = get_doc_score(docs[a], docs[b])
-            if score == 0:
-                continue
-            elif len(doc_by_doc) < 100:
-                doc_by_doc[score] = (a, b)
-            else:
-                max_score = max(doc_by_doc.keys())
-                if max_score > score:
-                    del doc_by_doc[max_score]
-                    doc_by_doc[score] = (a, b)
+        doc = docs[a]
+        distance = get_doc_score(doc, docs)
+        # drop zeros
+        distance[distance == 0] = np.inf
+        min_doc_idx = np.argsort(distance)[:100]
 
-        for doc in doc_by_doc:
+        for b in min_doc_idx:
             execution_string = 'INSERT INTO doc_doc (id, doc_a, doc_b, score) VALUES(NULL, ?, ?, ?)'
-            cur.execute(execution_string, [str(doc_by_doc[doc][0]), str(doc_by_doc[doc][1]), str(doc)])
+            cur.execute(execution_string, [str(a]), str(b), distance[b]])
 
     con.commit()
 
@@ -78,6 +58,7 @@ def write_doc_topic(con, cur, gamma_file):
     cur.execute('CREATE INDEX doc_topic_idx2 ON doc_topic(topic)')
     con.commit()
 
+    docs = np.loadtxt(gamma_file, 'r')
     # for each line in the gamma file
     doc_no = 0
     for doc in file(gamma_file, 'r'):
