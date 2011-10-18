@@ -102,7 +102,7 @@ def write_doc_topic(con, cur, gamma_file):
 
 def write_topics(con, cur, beta_file, vocab):
     """
-    For each topic, write the first 3 most probably words to
+    For each topic, write the first 3 most probably words to db
     """
     cur.execute('CREATE TABLE topics (id INTEGER PRIMARY KEY, title VARCHAR(100))')
     con.commit()
@@ -232,8 +232,7 @@ def write_docs(con, cur, docs_file):
 
     res = file_generator(open(docs_file, 'r'))
     cur.executemany('INSERT INTO docs (id, title) VALUES(NULL, ?)',
-                    ([i] for i in imap(buffer, res))) # each term doc be a list
-                                                     # this HAS to be a generator
+                    ([i] for i in imap(buffer, res))) # each should be a list
 
     con.commit()
 
