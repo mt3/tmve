@@ -1,6 +1,8 @@
 import sys
 import math
 import sqlite3
+from itertools import imap
+
 import numpy as np
 from numpy import argsort, asarray
 
@@ -87,7 +89,7 @@ def write_doc_topic(con, cur, gamma_file):
     cur.execute('CREATE INDEX doc_topic_idx2 ON doc_topic(topic)')
     con.commit()
 
-    docs = np.loadtxt(gamma_file, 'r')
+    docs = np.loadtxt(gamma_file)
     # for each line in the gamma file
     for doc_no,doc in enumerate(open(gamma_file, 'r')):
         doc = map(float, doc.split())
@@ -108,9 +110,9 @@ def write_topics(con, cur, beta_file, vocab):
     #NOTE: What is the following line for and why doesn't it raise an error?
     topics_file = open(filename, 'a')
 
-    for topic in open('final.beta', 'r'):
+    for topic in open(beta_file, 'r'):
         topic = map(float, topic.split())
-        index = argsort(topic)
+        index = argsort(topic)[::-1] # reverse argsort
         ins = 'INSERT INTO topics (id, title) VALUES(NULL, ?)'
         buf = "{%s, %s, %s}" % (vocab[index[0]],
                                 vocab[index[1]],
@@ -130,9 +132,9 @@ def write_topic_term(con, cur, beta_file):
 
     for topic_no,topic in enumerate(open(beta_file, 'r')):
         topic = asarray(topic.split(), dtype=float)
-        index = argsort(topic)
-        res = generic_generator((topic_no,) * len(topic),
-                                index, topic[index])
+        index = argsort(topic)[::-1] # reverse argsort
+        res = generic_generator((str(topic_no),) * len(topic),
+                                map(str,index), topic[index])
         ins = 'INSERT INTO topic_term (id, topic, term, score) '
         ins += 'VALUES(NULL, ?, ?, ?)'
         cur.executemany(ins, res)
@@ -219,9 +221,9 @@ def write_terms(con, cur, terms_file):
     cur.execute('CREATE TABLE terms (id INTEGER PRIMARY KEY, title VARCHAR(100))')
     con.commit()
 
-    res = file_generator(open(terms_files, 'r'))
+    res = file_generator(open(terms_file, 'r'))
     cur.executemany('INSERT INTO terms (id, title) VALUES(NULL, ?)',
-                    map(buffer, res))
+                    ([i] for i in imap(buffer, res))) # each term must be a list
     con.commit()
 
 def write_docs(con, cur, docs_file):
@@ -230,7 +232,8 @@ def write_docs(con, cur, docs_file):
 
     res = docs_file #HACK: my docs_file is already a generator
     cur.executemany('INSERT INTO docs (id, title) VALUES(NULL, ?)',
-                    map(buffer, res))
+                    ([i] for i in imap(buffer, res))) # each term doc be a list
+                                                     # this HAS to be a generator
 
     con.commit()
 
@@ -283,7 +286,7 @@ if (__name__ == '__main__'):
     cur = con.cursor()
 
     # pre-process vocab, since several of the below functions need it in this format
-    vocab = file(vocab_file, 'r').readlines()
+    vocab = open(vocab_file, 'r').readlines()
     vocab = map(lambda x: x.strip(), vocab)
 
     # write the relevant rlations to the database, see individual functions for details
