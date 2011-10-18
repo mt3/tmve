@@ -1,0 +1,4 @@
+This is a fork of Allison Chaney's original TMVE code, which can be found at 
+http://code.google.com/p/tmve/. I rewrote the generate_db.py script to be
+significantly faster. Computation times for me went from several hours to several 
+minutes.
