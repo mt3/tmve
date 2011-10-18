@@ -2,20 +2,50 @@ import sys
 import math
 import sqlite3
 import numpy as np
-from numpy import argsort
+from numpy import argsort, asarray
 
+### utility functions ###
+
+def generic_generator(*args):
+    """
+    A helpful abstraction to pass results to sqlite3.executemany
+    """
+    for zips in zip(*args):
+        yield zips
+
+def file_generator(fhandle):
+    """
+    A generator for an open file handle that strips lines
+    """
+    for line in fhandle:
+        yield line.strip()
 
 ### score functions ###
 
 #NOTE: what distance function is this?
 def get_doc_score(doca, docb, axis=1):
+    """
+    Returns 1/2 times the sum of squares distance between docuemnts.
+
+    doca is expected to be a 1d array while docb can be 2d.
+    """
     return .5 * np.sum((doca - docb)**2, axis=axis)
 
 def get_topic_score(topica, topicb, axis=1):
+    """
+    Returns discrete Hellinger distance between topics
+
+    topica is expected to be a 1d array, while topicb can be 2d.
+    """
     score = np.sum((np.abs(topica)**.5 - np.abs(topicb)**.5)**2, axis=axis)
     return 0.5 * score / (100. * len(topica))
 
 def get_term_score(terma, termb, axis=1):
+    """
+    Returns sum of squares distance of term pairs
+
+    terma is expected to be a 1d array, while termb can be 2d.
+    """
     return np.sum((terma - termb)**2, axis=axis)
 
 ### write relations to db functions ###
@@ -34,15 +64,20 @@ def write_doc_doc(con, cur, gamma_file):
     # you can't have multiple keys with the same value even if they exist
     for a in range(len(docs)):
         doc = docs[a]
-        distance = get_doc_score(doc, docs)
+        # index below by a, because already compared before a
+        distance = get_doc_score(doc, docs[a:])
         # drop zeros
         distance[distance == 0] = np.inf
         min_doc_idx = np.argsort(distance)[:100]
 
-        for b in min_doc_idx:
-            execution_string = 'INSERT INTO doc_doc (id, doc_a, doc_b, score) '
-            execution_string += 'VALUES(NULL, ?, ?, ?)'
-            cur.execute(execution_string, [str(a), str(b), distance[b]])
+        # generator of many results
+        res = generic_generator((str(a),)*100, map(str, min_doc_idx),
+                distance[min_doc_idx])
+
+        execution_string = 'INSERT INTO doc_doc (id, doc_a, doc_b, score) '
+        execution_string += 'VALUES(NULL, ?, ?, ?)'
+
+        cur.executemany(execution_string, res)
 
     con.commit()
 
@@ -55,14 +90,14 @@ def write_doc_topic(con, cur, gamma_file):
 
     docs = np.loadtxt(gamma_file, 'r')
     # for each line in the gamma file
-    for doc_no,doc in enumerate(docs):
-        for i in range(len(doc)):
-            ins = 'INSERT INTO doc_topic (id, doc, topic, score) '
-            ins += 'VALUES(NULL, ?, ?, ?)'
-            cur.execute(ins, [doc_no, i, doc[i]])
+    for doc_no,doc in enumerate(open(gamma_file, 'r')):
+        doc = map(float, doc.split())
+        ins = 'INSERT INTO doc_topic (id, doc, topic, score) '
+        ins += 'VALUES(NULL, ?, ?, ?)'
+        res = generic_generator((doc_no,)*len(doc), range(len(doc)), doc)
+        cur.executemany(ins, res)
 
     con.commit()
-
 
 def write_topics(con, cur, beta_file, vocab):
     """
@@ -85,7 +120,6 @@ def write_topics(con, cur, beta_file, vocab):
 
     con.commit()
 
-
 def write_topic_term(con, cur, beta_file):
     cur.execute('CREATE TABLE topic_term (id INTEGER PRIMARY KEY, topic INTEGER, '
                 'term INTEGER, score FLOAT)')
@@ -96,15 +130,15 @@ def write_topic_term(con, cur, beta_file):
     topic_term_file = open(filename, 'a')
 
     for topic_no,topic in enumerate(open(beta_file, 'r')):
-        topic = map(float, topic.split())
+        topic = asarray(topic.split(), dtype=float)
         index = argsort(topic)
-        for i in range(len(topic)):
-            ins = 'INSERT INTO topic_term (id, topic, term, score) '
-            ins += 'VALUES(NULL, ?, ?, ?)'
-            cur.execute(ins, [topic_no, index[i], topic[index[i]]])
+        res = generic_generator((topic_no,) * len(topic),
+                                index, topic[index])
+        ins = 'INSERT INTO topic_term (id, topic, term, score) '
+        ins += 'VALUES(NULL, ?, ?, ?)'
+        cur.executemany(ins, res)
 
     con.commit()
-
 
 def write_topic_topic(con, cur, beta_file):
     cur.execute('CREATE TABLE topic_topic (id INTEGER PRIMARY KEY, '
@@ -114,21 +148,22 @@ def write_topic_topic(con, cur, beta_file):
     con.commit()
 
     # for each line in the beta file
-    read_file = file(beta_file, 'r')
+    read_file = open(beta_file, 'r')
     topics = []
     for topic in read_file:
         topics.append(map(float, topic.split()))
     topics = np.asarray(topics)
 
     for topica_count,topic in enumerate(topics):
-        scores = get_topic_score(topic, topics)
-        for topicb_count, score in enumerate(scores):
-            ins = 'INSERT INTO topic_topic (id, topic_a, topic_b, score) '
-            ins += 'VALUES(NULL, ?, ?, ?)'
-            con.execute(ins, [topica_count, topicb_count, score])
+        #index by count because distance is symmetric
+        scores = get_topic_score(topic, topics[topica_count:])
+        res = generic_generator((topica_count,)*len(scores),
+                                range(len(scores)),
+                                scores)
+        ins = 'INSERT INTO topic_topic (id, topic_a, topic_b, score) '
+        ins += 'VALUES(NULL, ?, ?, ?)'
+        con.executemany(ins, res)
     con.commit()
-
-
 
 def write_term_term(con, cur, beta_file, no_vocab):
     cur.execute('CREATE TABLE term_term (id INTEGER PRIMARY KEY, '
@@ -144,15 +179,16 @@ def write_term_term(con, cur, beta_file, no_vocab):
 
     for a in range(len(v)):
         terma = v[a]
-        score = get_term_score(terma, vv)
+        score = get_term_score(terma, v[a:])
         # drop zeros
         score[score == 0] = np.inf
         min_score_idx = np.argsort(score)[:100]
-
-        for b in min_score_idx:
-            ins = 'INSERT INTO term_term (id, term_a, term_b, score) '
-            ins += 'VALUES(NULL, ?, ?, ?)'
-            cur.execute(ins, [str(a), str(b), score[b]])
+        res = generic_generator((str(a),)*len(score),
+                                map(str, min_score_idx),
+                                score[min_score_idx])
+        ins = 'INSERT INTO term_term (id, term_a, term_b, score) '
+        ins += 'VALUES(NULL, ?, ?, ?)'
+        cur.executemany(ins, res)
 
     con.commit()
 
@@ -169,13 +205,14 @@ def write_doc_term(con, cur, wordcount_file, no_words):
         for term in doc:
             terms[int(term.split(':')[0])] = int(term.split(':')[1])
 
-        for i in range(no_words):
-            score = 0
-            if terms.has_key(i):
-                score = terms[i]
-                execution_str = 'INSERT INTO doc_term (id, doc, term, score) '
-                execution_str += 'VALUES(NULL, ?, ?, ?)'
-                cur.execute(execution_str, [doc_no, i, score])
+        keys = terms.keys()
+
+
+        res = generic_generator((doc_no,)*len(keys),
+                                keys, [terms[i] for i in keys])
+        execution_str = 'INSERT INTO doc_term (id, doc, term, score) '
+        execution_str += 'VALUES(NULL, ?, ?, ?)'
+        cur.executemany(execution_str, res)
 
     con.commit()
 
@@ -183,19 +220,18 @@ def write_terms(con, cur, terms_file):
     cur.execute('CREATE TABLE terms (id INTEGER PRIMARY KEY, title VARCHAR(100))')
     con.commit()
 
-    for line in open(terms_file, 'r'):
-        cur.execute('INSERT INTO terms (id, title) VALUES(NULL, ?)',
-                    [buffer(line.strip())])
-
+    res = file_generator(open(terms_files, 'r'))
+    cur.executemany('INSERT INTO terms (id, title) VALUES(NULL, ?)',
+                    map(buffer, res))
     con.commit()
 
 def write_docs(con, cur, docs_file):
     cur.execute('CREATE TABLE docs (id INTEGER PRIMARY KEY, title VARCHAR(100))')
     con.commit()
 
-    for line in open(docs_file, 'r'):
-        cur.execute('INSERT INTO docs (id, title) VALUES(NULL, ?)',
-                     [buffer(line.strip())])
+    res = file_generator(open(docs_file, 'r'))
+    cur.executemany('INSERT INTO docs (id, title) VALUES(NULL, ?)',
+                    map(buffer, res))
 
     con.commit()
 
