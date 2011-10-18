@@ -48,7 +48,7 @@ def write_doc_doc(con, cur, gamma_file):
     for i in range(len(docs)):
         for j in range(len(docs[i])):
             docs[i][j] = math.pow(abs(docs[i][j]), 2)
-    
+
     print len(docs)
     for a in range(len(docs)):
         if a % 1000 == 0:
@@ -65,7 +65,7 @@ def write_doc_doc(con, cur, gamma_file):
                 if max_score > score:
                     del doc_by_doc[max_score]
                     doc_by_doc[score] = (a, b)
-        
+
         for doc in doc_by_doc:
             execution_string = 'INSERT INTO doc_doc (id, doc_a, doc_b, score) VALUES(NULL, ?, ?, ?)'
             cur.execute(execution_string, [str(doc_by_doc[doc][0]), str(doc_by_doc[doc][1]), str(doc)])
@@ -87,7 +87,7 @@ def write_doc_topic(con, cur, gamma_file):
         doc_no = doc_no + 1
 
     con.commit()
-        
+
 
 def write_topics(con, cur, beta_file, vocab):
     cur.execute('CREATE TABLE topics (id INTEGER PRIMARY KEY, title VARCHAR(100))')
@@ -103,16 +103,16 @@ def write_topics(con, cur, beta_file, vocab):
         cur.execute('INSERT INTO topics (id, title) VALUES(NULL, ?)', [buffer("{" + vocab[indices[0]] + ', ' + vocab[indices[1]] + ', ' + vocab[indices[2]] + '}')])
     con.commit()
 
-    
+
 def write_topic_term(con, cur, beta_file):
     cur.execute('CREATE TABLE topic_term (id INTEGER PRIMARY KEY, topic INTEGER, term INTEGER, score FLOAT)')
     cur.execute('CREATE INDEX topic_term_idx1 ON topic_term(topic)')
     cur.execute('CREATE INDEX topic_term_idx2 ON topic_term(term)')
     con.commit()
-    
+
     topic_no = 0
     topic_term_file = open(filename, 'a')
-    
+
     for topic in file(beta_file, 'r'):
         topic = map(float, topic.split())
         indices = range(len(topic)) # note: len(topic) should be the same as len(vocab)
@@ -136,7 +136,7 @@ def write_topic_topic(con, cur, beta_file):
     for topic in read_file:
         topics.append(map(float, topic.split()))
         topic_no = topic_no +1
-    
+
     topica_count = 0
     topic_by_topic = []
     for topica in topics:
@@ -148,7 +148,7 @@ def write_topic_topic(con, cur, beta_file):
                 continue
             score = get_topic_score(topica, topicb)
             cur.execute('INSERT INTO topic_topic (id, topic_a, topic_b, score) VALUES(NULL, ?, ?, ?)', [topica_count, topicb_count, score])
-            
+
             topic_by_topic.append((topica_count, topicb_count))
             topicb_count = topicb_count + 1
         topica_count = topica_count + 1
@@ -159,12 +159,12 @@ def write_topic_topic(con, cur, beta_file):
 
 def write_term_term(con, cur, beta_file, no_vocab):
     v = {}
-    
+
     cur.execute('CREATE TABLE term_term (id INTEGER PRIMARY KEY, term_a INTEGER, term_b INTEGER, score FLOAT)')
     cur.execute('CREATE INDEX term_term_idx1 ON term_term(term_a)')
     cur.execute('CREATE INDEX term_term_idx2 ON term_term(term_b)')
     con.commit()
-    
+
     for i in range(no_vocab):
 	    v[i] = []
 
@@ -172,7 +172,7 @@ def write_term_term(con, cur, beta_file, no_vocab):
         topic = map(float, topic.split())
         for i in range(no_vocab):
             v[i].append(math.sqrt(math.exp(topic[i])))
-    
+
     for terma in range(no_vocab):
         if terma % 1000 == 0:
             print "term " + str(terma)
@@ -188,19 +188,19 @@ def write_term_term(con, cur, beta_file, no_vocab):
                 if max_score > score:
                     del term_by_term[max_score]
                     term_by_term[score] = (terma, termb)
-        
+
         for term in term_by_term:
             execution_string = 'INSERT INTO term_term (id, term_a, term_b, score) VALUES(NULL, ?, ?, ?)'
             cur.execute(execution_string, [term_by_term[term][0], term_by_term[term][1], term])
 
     con.commit()
-    
+
 def write_doc_term(con, cur, wordcount_file, no_words):
     cur.execute('CREATE TABLE doc_term (id INTEGER PRIMARY KEY, doc INTEGER, term INTEGER, score FLOAT)')
     cur.execute('CREATE INDEX doc_term_idx1 ON doc_term(doc)')
     cur.execute('CREATE INDEX doc_term_idx2 ON doc_term(term)')
     con.commit()
-    
+
     doc_no = 0
     for doc in file(wordcount_file, 'r'):
         doc = doc.split()[1:]
@@ -216,7 +216,7 @@ def write_doc_term(con, cur, wordcount_file, no_words):
                 cur.execute(execution_string, [doc_no, i, score])
 
         doc_no += 1
-    
+
     con.commit()
 
 def write_terms(con, cur, terms_file):
@@ -263,10 +263,10 @@ if (__name__ == '__main__'):
     # write the relevant rlations to the database, see individual functions for details
     print "writing terms to db..."
     write_terms(con, cur, vocab_file)
-    
+
     print "writing docs to db..."
     write_docs(con, cur, doc_file)
-    
+
     print "writing doc_doc to db..."
     write_doc_doc(con, cur, gamma_file)
 
@@ -281,10 +281,10 @@ if (__name__ == '__main__'):
 
     print "writing topic_topic to db..."
     write_topic_topic(con, cur, beta_file)
-    
+
     print "writing term_term to db..."
     write_term_term(con, cur, beta_file, len(vocab))
-    
+
     print "writing doc_term to db..."
     write_doc_term(con, cur, doc_wordcount_file, len(vocab))
 
