@@ -24,6 +24,56 @@ def file_generator(fhandle):
 
 ### score functions ###
 
+#NOTE: equivalency between this definition of Bhattacharyya distance
+# and Hellinger distance is
+# 1 - np.exp(-bc_distance(a,b)) == .5 * hellinger_distance(a,b)
+# so in effect, including both is redundant...
+
+def bhatt_distance(a, b):
+    """
+    Returns the Bhattacharyya distance between to discrete distributions.
+
+    a is expected to be a 1d array (eg., a single document),
+    b is expected to be a 2d array with observations over rows
+    (eg., the rest of the documents in the corpus).
+    """
+    return -np.log(np.dot(b**.5, a**.5))
+
+def euclidean_distance(a, b, axis=1):
+    """
+    Returns the Euclidean distance between two discrete distributions.
+
+    a is expected to be a 1d array (eg., a single document),
+    b is expected to be a 2d array with observations over rows
+    (eg., the rest of the documents in the corpus).
+    """
+    return np.sum((a-b)**2, axis=axis)**.5
+    #NOTE: the below be preferred for "big" comparisons in dim 1 of b
+    #return np.apply_along_axis(np.linalg.norm, axis, doca-docb)
+
+# careful, this isn't metric - doesn't satisfy triangle inequality
+def kl_distance(a, b, axis=1):
+    """
+    Measure of relative entropy between two discrete distributions.
+
+    a is expected to be a 1d array (eg., a single document),
+    b is expected to be a 2d array with observations over rows
+    (eg., the rest of the documents in the corpus).
+    """
+    return np.sum(a*(np.log(a)-np.log(b)), axis=axis)
+
+def cosine_distance(a, b, axis=1):
+    """
+    Cosine distance between two vectors.
+
+    Notes
+    -----
+    Closer to 1 means distance is smaller.
+    """
+    a_norm = np.dot(a,a)**.5
+    b_norm = np.sum(b**2, axis=axis)**.5
+    return np.dot(b,a)/(a_norm*b_norm)
+
 def hellinger_distance(doca, docb, axis=1):
     """
     Returns the Hellinger Distance between documents.
@@ -32,7 +82,7 @@ def hellinger_distance(doca, docb, axis=1):
     docb is expected to be a 2d array(ie., the rest of the documents in the
     corpus).
 
-    Note that this expects to be given proper-probability distributions.
+    Note that this expects to be given proper probability distributions.
     """
     return np.sum((doca**.5 - docb**.5)**2, axis=axis)
 
