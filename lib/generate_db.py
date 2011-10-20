@@ -24,13 +24,17 @@ def file_generator(fhandle):
 
 ### score functions ###
 
-def get_doc_score(doca, docb, axis=1):
+def hellinger_distance(doca, docb, axis=1):
     """
-    Returns 1/2 times the sum of squares distance between docuemnts.
+    Returns the Hellinger Distance between documents.
 
-    doca is expected to be a 1d array while docb can be 2d.
+    doca is expected to be a 1d array (ie., a single document),
+    docb is expected to be a 2d array(ie., the rest of the documents in the
+    corpus).
+
+    Note that this expects to be given proper-probability distributions.
     """
-    return .5 * np.sum((doca - docb)**2, axis=axis)
+    return np.sum((doca**.5 - docb**.5)**2, axis=axis)
 
 def get_topic_score(topica, topicb, axis=1):
     """
@@ -58,13 +62,14 @@ def write_doc_doc(con, cur, gamma_file):
     cur.execute('CREATE INDEX doc_doc_idx2 ON doc_doc(doc_b)')
     con.commit()
 
-    docs = np.loadtxt(gamma_file) ** 2
+    gamma = np.loadtxt(gamma_file)
+    theta = gamma / gamma.sum(1)
 
     # get the closest 100 relations per document
-    for a in range(len(docs)):
-        doc = docs[a]
+    for a in range(len(theta)):
+        doc = theta[a]
         # index below by a, because already compared before a
-        distance = get_doc_score(doc, docs[a:])
+        distance = hellinger_distance(doc, theta[a:])
         # drop zeros
         distance[distance == 0] = np.inf
         min_doc_idx = np.argsort(distance)[:100]
